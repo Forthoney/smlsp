@@ -1,0 +1,17 @@
+#!/bin/sh
+cat <<EOF
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "textDocument/definition",
+  "params": {
+    "textDocument": {
+      "uri": "file://$1"
+    },
+    "position": {
+      "line": $2,
+      "character": $3
+    }
+  }
+}
+EOF

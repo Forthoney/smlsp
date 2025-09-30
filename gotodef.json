@@ -1,0 +1,14 @@
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "textDocument/definition",
+  "params": {
+    "textDocument": {
+      "uri": "file:///home/sj4963/repos/smlsp/src/hi.sml"
+    },
+    "position": {
+      "line": 4,
+      "character": 7
+    }
+  }
+}

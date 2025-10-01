@@ -1,0 +1,8 @@
+#!/bin/sh
+tmp="$(mktemp)"
+bytecount="$(tee "$tmp" | wc -c)"
+
+printf "Content-Length: $bytecount\r\n\r\n"
+cat "$tmp"
+
+rm -f "$tmp"

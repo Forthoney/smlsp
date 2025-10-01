@@ -1,0 +1,11 @@
+{
+    "package" : {
+        "name" : "smlsp",
+        "version" : "0.1.0"
+      },
+    "supportedCompilers" : [
+        "mlton"
+      ],
+    "dependencies" : [
+      ]
+  }

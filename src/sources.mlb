@@ -2,5 +2,5 @@ local
 	$(SML_LIB)/basis/basis.mlb
 	$(SML_LIB)/smlnj-lib/JSON/json-lib.mlb
 in
-	Message.sml
+	Request.sml
 end

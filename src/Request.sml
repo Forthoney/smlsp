@@ -14,37 +14,28 @@ struct
       , locale: string option
       }
   
-  val bodyDecoder : (int * method) JD.decoder=
+  fun validate jsonrpc id method =
     let
-      fun validate jsonrpc id method =
-        let
-          val _ = if jsonrpc = "2.0" then () else raise Field "jsonrpc"
-          val specialize =
-            case method of
-              "initialize" =>
-              let
-                val clientInfo =
-                  JD.succeed (fn name => fn version => {name = name, version = version})
-                  |> JD.reqField "name" JD.string
-                  |> JD.optField "version" JD.string
-                fun wrap pid loc info =
-                  Initialize {processId = pid, locale = loc, clientInfo = info}
-              in
-                JD.succeed wrap
-                |> JD.reqField "processId" (JD.nullable JD.int)
-                |> JD.optField "locale" JD.string
-                |> JD.optField "clientInfo" (JD.map (JD.decode clientInfo) JD.raw) 
-              end
-            | _ => raise Fail ("unsupported method " ^ method)
-        in
-          specialize |> JD.map (fn param => (id, param)) |> JD.decode
-        end
+      val _ = if jsonrpc = "2.0" then () else raise Field "jsonrpc"
+      val specialize =
+        case method of
+          "initialize" =>
+          let
+            val clientInfo =
+              JD.succeed (fn name => fn version => {name = name, version = version})
+              |> JD.reqField "name" JD.string
+              |> JD.optField "version" JD.string
+            fun wrap pid loc info =
+              Initialize {processId = pid, locale = loc, clientInfo = info}
+          in
+            JD.succeed wrap
+            |> JD.reqField "processId" (JD.nullable JD.int)
+            |> JD.optField "locale" JD.string
+            |> JD.optField "clientInfo" (JD.map (JD.decode clientInfo) JD.raw) 
+          end
+        | _ => raise Fail ("unsupported method " ^ method)
     in
-      JD.succeed validate
-      |> JD.reqField "jsonrpc" JD.string
-      |> JD.reqField "id" JD.int
-      |> JD.reqField "method" JD.string
-      |> JD.reqField "params" JD.raw
+      specialize |> JD.map (fn param => (id, param)) |> JD.decode
     end
 
   fun decodeHeader strm =
@@ -93,6 +84,12 @@ struct
     let
       val header as {contentLength, ...} = decodeHeader strm
       val body = TextIO.inputN (strm, contentLength)
+      val bodyDecoder = 
+        JD.succeed validate
+        |> JD.reqField "jsonrpc" JD.string
+        |> JD.reqField "id" JD.int
+        |> JD.reqField "method" JD.string
+        |> JD.reqField "params" JD.raw
     in
       (header, JD.decodeString bodyDecoder body)
       handle JD.JSONError (JD.FieldNotFound f, _) => raise Field f 

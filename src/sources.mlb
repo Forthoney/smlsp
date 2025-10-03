@@ -3,4 +3,6 @@ local
 	$(SML_LIB)/smlnj-lib/JSON/json-lib.mlb
 in
 	Request.sml
+	Response.sml
+	Server.sml
 end

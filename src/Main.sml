@@ -1,4 +1,1 @@
-val hello = "Hello, "
-val world = "World!"
-val greeting = hello ^ world ^ "\n"
-val () = print greeting
+val _ = Server.run TextIO.stdIn

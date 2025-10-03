@@ -2,19 +2,49 @@ structure Request =
 struct
   exception Parse
   exception Field of string
-  type body = {method: string, jsonrpc: int * int}
 
-  val bodyDecoder =
+  fun |> (x, f) = f x
+  infix |>
+  structure JD = JSONDecode
+
+  datatype method =
+    Initialize of 
+      { processId: int option
+      , clientInfo : {name: string, version: string option} option
+      , locale: string option
+      }
+  
+  val bodyDecoder : (int * method) JD.decoder=
     let
-      fun validate "2.0" method = {method = method, jsonrpc = (2, 0)}
-        | validate jsonrpc _ = raise Field "jsonrpc"
-      fun |> (x, f) = f x
-      infix |>
-      open JSONDecode
+      fun validate jsonrpc id method =
+        let
+          val _ = if jsonrpc = "2.0" then () else raise Field "jsonrpc"
+          val specialize =
+            case method of
+              "initialize" =>
+              let
+                val clientInfo =
+                  JD.succeed (fn name => fn version => {name = name, version = version})
+                  |> JD.reqField "name" JD.string
+                  |> JD.optField "version" JD.string
+                fun wrap pid loc info =
+                  Initialize {processId = pid, locale = loc, clientInfo = info}
+              in
+                JD.succeed wrap
+                |> JD.reqField "processId" (JD.nullable JD.int)
+                |> JD.optField "locale" JD.string
+                |> JD.optField "clientInfo" (JD.map (JD.decode clientInfo) JD.raw) 
+              end
+            | _ => raise Fail ("unsupported method " ^ method)
+        in
+          specialize |> JD.map (fn param => (id, param)) |> JD.decode
+        end
     in
-      succeed validate
-      |> reqField "jsonrpc" string
-      |> reqField "method" string
+      JD.succeed validate
+      |> JD.reqField "jsonrpc" JD.string
+      |> JD.reqField "id" JD.int
+      |> JD.reqField "method" JD.string
+      |> JD.reqField "params" JD.raw
     end
 
   fun decodeHeader strm =
@@ -64,8 +94,8 @@ struct
       val header as {contentLength, ...} = decodeHeader strm
       val body = TextIO.inputN (strm, contentLength)
     in
-      (header, JSONDecode.decodeString bodyDecoder body)
-      handle JSONDecode.JSONError (JSONDecode.FieldNotFound f, _) => raise Field f 
-           | JSONDecode.JSONError _ => raise Field ""
+      (header, JD.decodeString bodyDecoder body)
+      handle JD.JSONError (JD.FieldNotFound f, _) => raise Field f 
+           | JD.JSONError _ => raise Field ""
     end
 end

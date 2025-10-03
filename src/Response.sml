@@ -1,4 +1,4 @@
-structure Response: MESSAGE_STRUCT =
+structure Response =
 struct
   datatype err_code =
     ParseError
@@ -26,5 +26,16 @@ struct
      | ContentModified => ~32801
      | RequestCancelled => ~32800
 
-  datatype result = Ok of string | Err of {code: err_code, message: string}
+  datatype outcome = Ok of string | Err of {code: err_code, message: string}
+
+  val initialize = 
+    let
+      val capabilities = JSON.OBJECT []
+      val serverInfo = JSON.OBJECT [("name", JSON.STRING "smlsp")]
+    in
+      JSON.OBJECT [
+        ("capabilities", JSON.OBJECT []),
+        ("serverInfo", JSON.OBJECT [("name", JSON.STRING "smlsp")])
+      ]
+    end
 end

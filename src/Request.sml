@@ -8,31 +8,34 @@ struct
   structure JD = JSONDecode
 
   datatype method =
-    Initialize of 
+    Initialize of
       { processId: int option
-      , clientInfo : {name: string, version: string option} option
+      , clientInfo: {name: string, version: string option} option
       , locale: string option
       }
-  
+
   fun validate jsonrpc id method =
     let
       val _ = if jsonrpc = "2.0" then () else raise Field "jsonrpc"
       val specialize =
         case method of
           "initialize" =>
-          let
-            val clientInfo =
-              JD.succeed (fn name => fn version => {name = name, version = version})
-              |> JD.reqField "name" JD.string
-              |> JD.optField "version" JD.string
-            fun wrap pid loc info =
-              Initialize {processId = pid, locale = loc, clientInfo = info}
-          in
-            JD.succeed wrap
-            |> JD.reqField "processId" (JD.nullable JD.int)
-            |> JD.optField "locale" JD.string
-            |> JD.optField "clientInfo" (JD.map (JD.decode clientInfo) JD.raw) 
-          end
+            let
+              fun pack name version = {name = name, version = version}
+              fun wrap pid loc info =
+                Initialize {processId = pid, locale = loc, clientInfo = info}
+
+              val clientInfo =
+                JD.succeed pack
+                |> JD.reqField "name" JD.string
+                |> JD.optField "version" JD.string
+            in
+              JD.succeed wrap
+              |> JD.reqField "processId" (JD.nullable JD.int)
+              |> JD.optField "locale" JD.string
+              |> JD.optField "clientInfo" (JD.map (JD.decode clientInfo) JD.raw)
+            end
+        | "initialized" => raise Fail "initialized"
         | _ => raise Fail ("unsupported method " ^ method)
     in
       specialize |> JD.map (fn param => (id, param)) |> JD.decode
@@ -53,9 +56,9 @@ struct
           | ("Content-Type", value) => (length, SOME value)
           | ("Content-Length", value) =>
               (case Int.fromString value of
-                SOME i => (SOME i, ty)
-                (* this is a failure to parse the value of the Content-Length flag, so it is a parse error *)
-              | NONE => raise Parse)
+                 SOME i => (SOME i, ty)
+               (* this is a failure to parse the value of the Content-Length flag, so it is a parse error *)
+               | NONE => raise Parse)
           | (unknown, _) => raise Field unknown
         end
 
@@ -84,15 +87,15 @@ struct
     let
       val header as {contentLength, ...} = decodeHeader strm
       val body = TextIO.inputN (strm, contentLength)
-      val bodyDecoder = 
+      val bodyDecoder =
         JD.succeed validate
         |> JD.reqField "jsonrpc" JD.string
-        |> JD.reqField "id" JD.int
-        |> JD.reqField "method" JD.string
+        |> JD.reqField "id" JD.int |> JD.reqField "method" JD.string
         |> JD.reqField "params" JD.raw
     in
-      (header, JD.decodeString bodyDecoder body)
-      handle JD.JSONError (JD.FieldNotFound f, _) => raise Field f 
-           | JD.JSONError _ => raise Field ""
+      {header = header, body = JD.decodeString bodyDecoder body}
+      handle
+        JD.JSONError (JD.FieldNotFound f, _) => raise Field f
+      | JD.JSONError _ => raise Field ""
     end
 end

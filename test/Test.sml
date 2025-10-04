@@ -4,9 +4,6 @@ fun runTest name f =
   else
     ()
 
-(* val _ = runTest "basic encode" *)
-  (* (fn () => Message.encode "hi" = "Content-Length: 2\r\n\r\nhi") *)
-
 val _ = runTest "basic decode"
   (fn () =>
     let

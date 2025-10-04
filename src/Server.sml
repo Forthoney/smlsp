@@ -1,19 +1,20 @@
 structure Server =
 struct
-  fun run strm =
+  fun run (instrm, outstrm) =
     let
-      val log = TextIO.openOut "/home/sj4963/repos/smlsp/log.txt"
+      val log = TextIO.openOut "/home/castlehoney/repos/smlsp/log.txt"
       fun loop () =
-        let
-          val _ = Request.decode strm
-        in
-          loop ()
+        let val _ = Request.decode instrm
+        in loop ()
         end
+
+      val _ = 
+        case Request.decode instrm of
+          {body = (id, Request.Initialize _), ...} =>
+            Response.encode outstrm (id, Response.Result Response.initialize)
+        | _ => raise Fail "hi"
+      val _ = TextIO.output (log, "sent reply\n")
     in
-      case Request.decode strm of
-        (_, (_, Request.Initialize _)) =>
-        (JSONPrinter.print (TextIO.stdOut, Response.initialize);
-        loop ())
-      | _ => raise Fail "hi"
+      loop ()
     end
 end

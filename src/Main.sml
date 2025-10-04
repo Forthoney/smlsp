@@ -1,1 +1,1 @@
-val _ = Server.run TextIO.stdIn
+val _ = Server.run (TextIO.stdIn, TextIO.stdOut)

@@ -1,6 +1,7 @@
 structure Request =
 struct
   exception Parse
+  exception EndOfStream
   exception Field of string
 
   fun |> (x, f) = f x
@@ -64,7 +65,7 @@ struct
 
       fun loop headers =
         case TextIO.inputLine strm of
-          NONE => raise Parse
+          NONE => raise EndOfStream
         | SOME "\r\n" => headers
         | SOME s =>
             let

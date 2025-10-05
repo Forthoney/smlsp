@@ -28,7 +28,7 @@ struct
         case recv strm of
           In.Request (id, In.Initialize _) =>
             send (SOME id, Res.Result Res.initialize)
-        | In.Notification In.Exit => raise BadExit
+        | In.Notification In.Exit => (Logger.warn "received exit in initialize mode"; raise BadExit)
         | In.Notification _ => initialize ()
         | In.Request (id, _) =>
             ( send
@@ -40,7 +40,7 @@ struct
 
       fun shutdown () =
         case recv strm of
-          In.Notification In.Exit => ()
+          In.Notification In.Exit => Logger.debug "received exit in shutdown mode"
         | In.Notification _ => shutdown ()
         | In.Request (id, _) =>
             ( send
@@ -60,9 +60,15 @@ struct
             ; loop ()
             )
         | In.Request (id, In.Shutdown) => send (SOME id, Res.Nothing)
-        | In.Notification In.Exit => raise BadExit
+        | In.Notification In.Exit =>
+          (Logger.warn "received exit in loop mode"; raise BadExit)
         | In.Notification _ => loop ()
     in
-      (initialize (); loop (); shutdown ())
+      ( initialize ()
+      ; Logger.info "initialized"
+      ; loop ()
+      ; Logger.info "shutting down"
+      ; shutdown ()
+      )
     end
 end

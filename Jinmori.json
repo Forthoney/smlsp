@@ -7,5 +7,6 @@
         "mlton"
       ],
     "dependencies" : [
+        "github.com/Forthoney/timber@v0.1.4"
       ]
   }

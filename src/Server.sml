@@ -1,18 +1,68 @@
 structure Server =
 struct
-  fun run (instrm, outstrm) =
+  structure In = Incoming
+  structure Res = Response
+
+  exception BadExit
+
+  fun safeReceive (instrm, outstrm) =
     let
-      val log = TextIO.openOut "/home/castlehoney/repos/smlsp/log.txt"
-      fun loop () =
-        (Incoming.decode instrm; loop ())
-        handle Incoming.EndOfStream => ()
+      fun sendErr e =
+        (Res.encode outstrm (NONE, Res.Error e); safeReceive (instrm, outstrm))
     in
-      ( case Incoming.decode instrm of
-          {body = (id, Request.Initialize _), ...} =>
-            Response.encode outstrm (id, Response.Result Response.initialize)
-        | _ => raise Fail "hi"
-      ; loop ()
-      )
-      handle Incoming.EndOfStream => ()
+      In.decode instrm
+      handle
+        In.Parse => sendErr {code = Res.ParseError, message = ""}
+      | In.Field s => sendErr {code = Res.InvalidParams, message = s}
+      | In.Method m => sendErr {code = Res.MethodNotFound, message = m}
+      | In.EndOfStream => raise In.EndOfStream
+      | other => sendErr {code = Res.InternalError, message = exnMessage other}
+    end
+
+  fun run (strm as (instrm, outstrm)) =
+    let
+      val send = Res.encode outstrm
+      val recv = #body o safeReceive
+
+      fun initialize () =
+        case recv strm of
+          In.Request (id, In.Initialize _) =>
+            send (SOME id, Res.Result Res.initialize)
+        | In.Notification In.Exit => raise BadExit
+        | In.Notification _ => initialize ()
+        | In.Request (id, _) =>
+            ( send
+                ( SOME id
+                , Res.Error {code = Res.ServerNotInitialized, message = ""}
+                )
+            ; initialize ()
+            )
+
+      fun shutdown () =
+        case recv strm of
+          In.Notification In.Exit => ()
+        | In.Notification _ => shutdown ()
+        | In.Request (id, _) =>
+            ( send
+                ( SOME id
+                , Res.Error {code = Res.InvalidRequest, message = "in shutdown"}
+                )
+            ; shutdown ()
+            )
+
+      fun loop () =
+        case recv strm of
+          In.Request (id, In.Initialize _) =>
+            ( send (SOME id, Res.Error
+                { code = Res.InvalidRequest
+                , message = "initialized request already received"
+                })
+            ; loop ()
+            )
+        | In.Request (id, In.Shutdown) => send (SOME id, Res.Nothing)
+        | In.Notification In.Exit => raise BadExit
+        | In.Notification _ => loop ()
+    in
+      (initialize (); loop (); shutdown ())
     end
 end

@@ -6,7 +6,7 @@ struct
   | MethodNotFound
   | InvalidParams
   | InternalError
-  | ServerNotinitialized
+  | ServerNotInitialized
   | UnknownErrorCode
   | RequestFailed
   | ServerCancelled
@@ -19,7 +19,7 @@ struct
      | MethodNotFound => ~32601
      | InvalidParams => ~32602
      | InternalError => ~32603
-     | ServerNotinitialized => ~32002
+     | ServerNotInitialized => ~32002
      | UnknownErrorCode => ~32001
      | RequestFailed => ~32803
      | ServerCancelled => ~32802
@@ -31,9 +31,13 @@ struct
       { capabilities: string list
       , serverInfo: {name: string, version: string option}
       }
+
   datatype outcome =
     Result of result
   | Error of {code: err_code, message: string}
+  (* For rare cases where there is nothing to report besides an acknowledgement.
+     One such example is a response to a shutdown request that does not encounter any issues *)
+  | Nothing
 
   val initialize =
     Initialize
@@ -79,9 +83,10 @@ struct
                 , ("message", JSON.STRING message)
                 ]
             )
+        | Nothing => ("result", JSON.NULL)
       val payload = JSON.OBJECT
         [ ("jsonrpc", JSON.STRING "2.0")
-        , ("id", JSON.INT (Int.toLarge id))
+        , ("id", Option.getOpt (Option.map (JSON.INT o Int.toLarge) id, JSON.NULL))
         , body
         ]
     in

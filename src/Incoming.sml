@@ -1,46 +1,25 @@
-structure Request =
+structure Incoming =
 struct
-  exception Parse
   exception EndOfStream
+  exception Parse
+  exception Method of string
   exception Field of string
 
   fun |> (x, f) = f x
   infix |>
   structure JD = JSONDecode
 
-  datatype method =
+  datatype request =
     Initialize of
       { processId: int option
       , clientInfo: {name: string, version: string option} option
       , locale: string option
       }
+  | Shutdown
 
-  fun validate jsonrpc id method =
-    let
-      val _ = if jsonrpc = "2.0" then () else raise Field "jsonrpc"
-      val specialize =
-        case method of
-          "initialize" =>
-            let
-              fun pack name version = {name = name, version = version}
-              fun wrap pid loc info =
-                Initialize {processId = pid, locale = loc, clientInfo = info}
+  datatype notification = Initialized | Exit
 
-              val clientInfo =
-                JD.succeed pack
-                |> JD.reqField "name" JD.string
-                |> JD.optField "version" JD.string
-            in
-              JD.succeed wrap
-              |> JD.reqField "processId" (JD.nullable JD.int)
-              |> JD.optField "locale" JD.string
-              |> JD.optField "clientInfo" (JD.map (JD.decode clientInfo) JD.raw)
-            end
-        | "initialized" => raise Fail "initialized"
-        | _ => raise Fail ("unsupported method " ^ method)
-    in
-      specialize |> JD.map (fn param => (id, param)) |> JD.decode
-    end
+  datatype message = Request of int * request | Notification of notification
 
   fun decodeHeader strm =
     let
@@ -76,23 +55,57 @@ struct
             end
     in
       case loop (NONE, NONE) of
-        (NONE, _) => raise Field "Content-Length"
-      | (SOME length, ty) =>
-          { contentLength = length
-          , contentType = Option.getOpt
-              (ty, "application/vscode-jsonrpc; charset=utf-8")
-          }
+        (SOME length, ty) =>
+        { contentLength = length
+        , contentType = Option.getOpt
+            (ty, "application/vscode-jsonrpc; charset=utf-8")
+        }
+      | (NONE, _) => raise Field "Content-Length"
     end
+
+  structure Request =
+  struct
+    fun mk f =
+      JD.succeed (fn id => fn params => Request (id, JD.decode f params))
+      |> JD.reqField "id" JD.int
+      |> JD.reqField "params" JD.raw
+
+    val initialize =
+      let
+        fun pack name version = {name = name, version = version}
+        fun wrap pid loc info =
+          Initialize {processId = pid, locale = loc, clientInfo = info}
+
+        val clientInfo =
+          JD.succeed pack
+          |> JD.reqField "name" JD.string
+          |> JD.optField "version" JD.string
+      in
+        JD.succeed wrap
+        |> JD.reqField "processId" (JD.nullable JD.int)
+        |> JD.optField "locale" JD.string
+        |> JD.optField "clientInfo" (JD.map (JD.decode clientInfo) JD.raw)
+      end
+  end
+
+  val route =
+    fn "initialize" => Request.mk Request.initialize
+     | "initialized" => JD.succeed (Notification Initialized)
+     | "shutdown" =>
+        JD.succeed (fn id => Request (id, Shutdown)) |> JD.reqField "id" JD.int
+     | "exit" => JD.succeed (Notification Exit)
+     | m => raise Method m
 
   fun decode strm =
     let
       val header as {contentLength, ...} = decodeHeader strm
       val body = TextIO.inputN (strm, contentLength)
       val bodyDecoder =
-        JD.succeed validate
-        |> JD.reqField "jsonrpc" JD.string
-        |> JD.reqField "id" JD.int |> JD.reqField "method" JD.string
-        |> JD.reqField "params" JD.raw
+        JD.field "jsonrpc" JD.string
+        |>
+        JD.andThen
+          (fn "2.0" => JD.field "method" JD.string |> JD.andThen route
+            | _ => raise Field "jsonrpc")
     in
       {header = header, body = JD.decodeString bodyDecoder body}
       handle

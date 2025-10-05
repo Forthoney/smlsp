@@ -17,7 +17,17 @@ struct
       }
   | Shutdown
 
-  datatype notification = Initialized | Exit
+  type text_doc_item =
+    { uri: string
+    , languageId: string 
+    , version: int
+    , text: string
+    }
+
+  datatype notification =
+    Initialized
+  | Exit 
+  | TextDocDidOpen of text_doc_item
 
   datatype message = Request of int * request | Notification of notification
 
@@ -88,12 +98,36 @@ struct
       end
   end
 
+  structure Notification =
+  struct
+    fun mk f =
+      JD.succeed (fn params => Notification (JD.decode f params))
+      |> JD.reqField "params" JD.raw
+
+    fun textDoc f =
+      let
+        fun pack uri lid ver text = {uri = uri, languageId = lid, version = ver, text = text}
+        val textDocItem =
+          JD.succeed pack
+          |> JD.reqField "uri" JD.string
+          |> JD.reqField "languageId" JD.string
+          |> JD.reqField "version" JD.int
+          |> JD.reqField "text" JD.string
+      in
+        JD.succeed f
+        |> JD.reqField "textDocument" (JD.map (JD.decode textDocItem) JD.raw)
+      end
+
+    val textDocDidOpen = textDoc TextDocDidOpen
+  end
+
   val route =
     fn "initialize" => Request.mk Request.initialize
      | "initialized" => JD.succeed (Notification Initialized)
      | "shutdown" =>
         JD.succeed (fn id => Request (id, Shutdown)) |> JD.reqField "id" JD.int
      | "exit" => JD.succeed (Notification Exit)
+     | "textDocument/didOpen" => Notification.mk Notification.textDocDidOpen
      | m => raise Method m
 
   fun decode strm =

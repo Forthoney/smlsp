@@ -1,8 +1,17 @@
 local
 	$(SML_LIB)/basis/basis.mlb
-	$(SML_LIB)/smlnj-lib/JSON/json-lib.mlb
 in
-	Incoming.sml
-	Response.sml
+	local
+		../deps/timber/src/sources.mlb
+	in
+		Logger.sml
+	end
+
+	local
+		$(SML_LIB)/smlnj-lib/JSON/json-lib.mlb
+	in
+		Incoming.sml
+		Response.sml
+	end
 	Server.sml
 end

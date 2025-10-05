@@ -28,7 +28,7 @@ struct
 
   datatype result =
     Initialize of
-      { capabilities: string list
+      { capabilities: (string * JSON.value) list
       , serverInfo: {name: string, version: string option}
       }
 
@@ -39,9 +39,10 @@ struct
      One such example is a response to a shutdown request that does not encounter any issues *)
   | Nothing
 
-  val initialize =
-    Initialize
-      {capabilities = [], serverInfo = {name = "smlsp", version = NONE}}
+  val initialize = Initialize
+    { capabilities = [("textDocumentSync", JSON.INT 1)]
+    , serverInfo = {name = "smlsp", version = NONE}
+    }
 
   fun serializeResult (Initialize {capabilities, serverInfo = {name, version}}) =
     let
@@ -86,7 +87,9 @@ struct
         | Nothing => ("result", JSON.NULL)
       val payload = JSON.OBJECT
         [ ("jsonrpc", JSON.STRING "2.0")
-        , ("id", Option.getOpt (Option.map (JSON.INT o Int.toLarge) id, JSON.NULL))
+        , ( "id"
+          , Option.getOpt (Option.map (JSON.INT o Int.toLarge) id, JSON.NULL)
+          )
         , body
         ]
     in

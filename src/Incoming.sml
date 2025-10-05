@@ -102,8 +102,7 @@ struct
       val body = TextIO.inputN (strm, contentLength)
       val bodyDecoder =
         JD.field "jsonrpc" JD.string
-        |>
-        JD.andThen
+        |> JD.andThen
           (fn "2.0" => JD.field "method" JD.string |> JD.andThen route
             | _ => raise Field "jsonrpc")
     in

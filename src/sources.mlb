@@ -8,6 +8,7 @@ in
 	end
 
 	local
+		$(SML_LIB)/smlnj-lib/Compat/mono-buffer/sources.mlb
 		$(SML_LIB)/smlnj-lib/JSON/json-lib.mlb
 	in
 		Incoming.sml

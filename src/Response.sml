@@ -57,20 +57,17 @@ struct
         ]
     end
 
-  val rec jsonSize =
-    fn JSON.OBJECT cs =>
-      List.foldl
-        (fn ((name, v), acc) => acc + String.size name + 2 + 1 + jsonSize v) 2
-        cs + Int.max (length cs - 1, 0)
-     | JSON.ARRAY cs =>
-      List.foldl (fn (c, acc) => jsonSize c + acc + 1) 2 cs
-      + Int.max (length cs - 1, 0)
-     | JSON.NULL => 4
-     | JSON.BOOL true => 4
-     | JSON.BOOL false => 5
-     | JSON.INT i => String.size (LargeInt.toString i)
-     | JSON.FLOAT f => String.size (Real.fmt (StringCvt.GEN (SOME 17)) f)
-     | JSON.STRING s => String.size s + 2
+  (* Just copying value from 
+     https://learn.microsoft.com/en-us/dotnet/api/system.text.json.jsonserializeroptions.defaultbuffersize?view=net-9.0
+     Probably could do better but it's fine
+  *)
+  val buf = CharBuffer.new 16384 
+  val printer = JSONBufferPrinter.new buf
+  fun stringify v = 
+    ( CharBuffer.reset buf
+    ; JSONBufferPrinter.value (printer, v)
+    ; (CharBuffer.length buf, CharBuffer.contents buf)
+    )
 
   fun encode strm (id, outcome) =
     let
@@ -92,12 +89,13 @@ struct
           )
         , body
         ]
+      val (length, s) = stringify payload
+      val output = fn s => TextIO.output (strm, s)
     in
-      ( TextIO.output
-          ( strm
-          , "Content-Length: " ^ Int.toString (jsonSize payload) ^ "\r\n\r\n"
-          )
-      ; JSONPrinter.print (strm, payload)
+      ( output "Content-Length: "
+      ; output (Int.toString length)
+      ; output "\r\n\r\n"
+      ; output s
       ; TextIO.flushOut strm
       )
     end
